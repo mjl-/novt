@@ -1,0 +1,47 @@
+# status
+
+first bits ready to try, lots to do.
+
+
+# intro
+
+a simple vt220 terminal emulator with colors.  some terminal features
+will be missing.
+
+
+# install
+
+change the "mkconfig" if you do not have $ROOT set.  now "mk install"
+to compile and install the files.
+
+when building from within inferno, insert SYSHOST=Inferno and ROOT=
+in the mk invocations to override the values in the mkconfig.
+
+
+# latest version
+
+the latest version can be found at:
+
+    http://www.ueber.net/code/r/novt
+
+
+# licence & author
+
+all files are in the public domain.  this code has been written by
+mechiel lukkien, reachable at mechiel@ueber.net or mechiel@xs4all.nl.
+
+
+# todo
+
+- fix color drawing.  we're keeping color state too often.
+- implement scrolling regions
+
+- handle horizontal tabs?
+- implement switch to 132 columns?
+- more keys to pass to remote, e.g. page up/down, insert, function keys.
+- make drawing faster
+
+- implement origin mode?
+- implement arbitrary terminal dimensions?
+- implement non-erasable characters?
+- double height/width lines?  probably not

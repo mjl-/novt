@@ -1,0 +1,31 @@
+.TH NOVT 1
+.SH NAME
+novt \- terminal emulator
+.SH SYNOPSIS
+.B novt
+[
+.B -de
+]
+.I command ...
+.SH DESCRIPTION
+.I Novt
+emulates a vt220 terminal, with some additional (ansi/ecma) color codes.
+
+.SS Options
+.TP
+.B -e
+Echo the characters typed.  Disabled by default.
+.TP
+.B -d
+Enable debug printing.  Prints a lot of information.
+.SH EXAMPLE
+To start a terminal with an ssh session to a server:
+.EX
+	novt ssh localhost
+.EE
+.SH SOURCE
+.B /appl/wm/novt.b
+.SH SEE ALSO
+.IR ssh (1).
+.SH BUGS
+Many, features are added as needed.  Lots of escape codes are not supported.
