@@ -1,15 +1,17 @@
 # status
 
-first bits ready to try, lots to do.
+useable.
 
 
 # intro
 
-a simple vt220 terminal emulator with colors.  some terminal features
-will be missing.
+a basic ecma-48 terminal emulator with color, supporting only basic
+escape sequences.
 
 
 # install
+
+first, make sure you have "util" installed.
 
 change the "mkconfig" if you do not have $ROOT set.  now "mk install"
 to compile and install the files.
@@ -33,15 +35,8 @@ mechiel lukkien, reachable at mechiel@ueber.net or mechiel@xs4all.nl.
 
 # todo
 
-- fix color drawing.  we're keeping color state too often.
-- implement scrolling regions
-
-- handle horizontal tabs?
-- implement switch to 132 columns?
-- more keys to pass to remote, e.g. page up/down, insert, function keys.
-- make drawing faster
-
-- implement origin mode?
-- implement arbitrary terminal dimensions?
-- implement non-erasable characters?
-- double height/width lines?  probably not
+- implement tab?
+- send function keys?
+- handle whatever happens when Delete is pressed correctly?
+- fine tune colors?
+- more testing

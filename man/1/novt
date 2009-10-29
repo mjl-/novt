@@ -9,23 +9,83 @@ novt \- terminal emulator
 .I command ...
 .SH DESCRIPTION
 .I Novt
-emulates a vt220 terminal, with some additional (ansi/ecma) color codes.
-
+is a terminal emulator mostly conforming to ecma-48, including color
+support.  It starts
+.I command
+and writes typed characters and escapes codes to it, and reads
+characters from it, interpreting the escape codes.  Only the minimum
+number of escape codes are implemented (limited implementations are
+recommended by ecma-48!), only the escape codes that have been
+encountered have been implemented.
+.SS Terminal
+Text is ``rendered'' in a Tk text widget.  The last lines are the
+current terminal contents, earlier lines can be scrolled to with
+the mouse (not with page up and page down!).  Text can be selected,
+the current selection can be copied into the snarf buffer with
+button 2, the snarf buffer can be pasted with button 3.
+Copied text has spaces removed from the end of the line.
+.PP
+The buttons at the top of the screen have the following functionality:
+.TP
+.B exit
+Close the program.
+.TP
+.B echo/noecho
+Toggle echoing data written (characters typed).  The button's text
+describes the function that will be enabled when clicked.  Option
+.B -e
+enables echo at startup.
+.TP
+.B escs/noescs
+Toggle whether escape codes (those other than ascii control codes)
+are interpreted are shown verbatim.
+.TP
+.B clear
+Clear all text in the screen.
+.TP
+.B dim
+Write current terminal dimensions to
+.BR /dev/termctl .
+.TP
+.B debug
+Increase debugging.  Option
+.B -d
+increases debugging at startup.
+.B nodebug
+Turns debugging of.
+.PP
+A ``bell'' is visualized between the ``exit'' and ``echo/noecho''
+buttons with the text ``bell!''.
+When the terminal is resized, the new dimensions are written to
+.BR /dev/termctl ,
+as exported by
+.IR ssh (1).
+This makes sure both sides talk about the same terminal dimensions.
 .SS Options
 .TP
 .B -e
 Echo the characters typed.  Disabled by default.
 .TP
 .B -d
-Enable debug printing.  Prints a lot of information.
+Enable debug printing, more options prints more information.  
 .SH EXAMPLE
 To start a terminal with an ssh session to a server:
 .EX
-	novt ssh localhost
+	novt ssh -t localhost
 .EE
 .SH SOURCE
 .B /appl/wm/novt.b
 .SH SEE ALSO
 .IR ssh (1).
+.br
+``Standard ECMA-48, Control Functions for Coded Character Sets''.
 .SH BUGS
-Many, features are added as needed.  Lots of escape codes are not supported.
+Terminals.
+.br
+The `ICH' command, ``insert character'' does not move the cursor
+to the start of the line as ecma-48 dictates.  Programs do not expect this.
+.br
+Lots of escape codes are not supported, they will be added as needed.
+.br
+.I Novt
+is slow.
