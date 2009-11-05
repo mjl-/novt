@@ -737,7 +737,7 @@ control(p, im: string, c: int)
 		n = min(columns-st.x, n);
 		s := sprint("%d.%d", tkline(st.y), st.x);
 		tkcmd(sprint(".t delete %s {%s +%dc}", s, s, n));
-		tkcmd(sprint(".t insert {%s lineend -%dc} '%s", s, n, mkspace(n)));
+		tkcmd(sprint(".t insert {%s lineend} '%s", s, mkspace(n)));
 	'M' =>	# dl, delete line
 		setx(0);
 		n := value(1, a);
