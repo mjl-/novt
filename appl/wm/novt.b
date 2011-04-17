@@ -141,7 +141,7 @@ init(ctxt: ref Draw->Context, args: list of string)
 		fail("no window context");
 	context = ctxt;
 
-	sys->pctl(Sys->NEWPGRP, nil);
+	sys->pctl(Sys->NEWPGRP|Sys->FORKNS, nil);
 
 	arg->init(args);
 	arg->setusage(arg->progname()+" [-de] [command ...]");
@@ -226,20 +226,16 @@ init(ctxt: ref Draw->Context, args: list of string)
 	s := <-ctrlc =>
 		c := s[0];
 		c -= 16r40;
-		if(ewrite(tocmd, d := sys->aprint("%c", c), len d) != len d) {
+		if(ewrite(tocmd, d := sys->aprint("%c", c), len d) != len d)
 			seterror(sprint("write: %r"));
-			continue;
-		}
-		if(echo)
+		else if(echo)
 			drawc(c);
 
 	e := <-escc =>
 		e = "\u001b["+e;
 		d := array of byte e;
-		if(ewrite(tocmd, d, len d) != len d) {
+		if(ewrite(tocmd, d, len d) != len d)
 			seterror(sprint("write: %r"));
-			continue;
-		}
 
 	cmd := <-cmdc =>
 		if(dflag) warn(sprint("cmd: %q", cmd));
@@ -247,15 +243,16 @@ init(ctxt: ref Draw->Context, args: list of string)
 		"paste" =>
 			s := tkclient->snarfget();
 			d := array of byte s;
-			if(ewrite(tocmd, d, len d) != len d) {
+			if(ewrite(tocmd, d, len d) != len d)
 				seterror(sprint("write: %r"));
-				continue;
-			}
-			if(echo)
+			else if(echo)
 				for(i = 0; i < len s; i++)
 					drawc(s[i]);
 		"snarf" =>
-			s := tkcmd(sprint(".t get sel.first sel.last"));
+			r := tkcmd(".t tag ranges sel");
+			if(r == nil)
+				break;
+			s := tkcmd(".t get "+r);
 			l := split(s, "\n");
 			s = "";
 			for(i = 0; i < len l; i++)
@@ -358,25 +355,21 @@ init(ctxt: ref Draw->Context, args: list of string)
 		s := "";
 		s[0] = str->toint(k, 16).t0;
 		d := array of byte s;
-		if(ewrite(tocmd, d, len d) != len d) {
+		if(ewrite(tocmd, d, len d) != len d)
 			seterror(sprint("write: %r"));
-			continue;
-		}
-		if(echo)
+		else if(echo)
 			drawc(s[0]);
 
 	(buf, err) := <-inc =>
-		if(buf == nil && err == nil) {
+		if(buf == nil && err == nil)
 			seterror("eof");
-			continue;
-		}
-		if(err != nil) {
+		else if(err != nil)
 			seterror("read: "+err);
-			continue;
+		else {
+			drawbuf(buf);
+			setcursor();
+			tkcmd("update");
 		}
-		drawbuf(buf);
-		setcursor();
-		tkcmd("update");
 	}
 }
 
@@ -968,7 +961,7 @@ nvalue(v: int, a: array of string, i: int): int
 tkcmd(s: string): string
 {
 	r := tk->cmd(t, s);
-	if(r != nil && r[0] == '!')
+	if(r != nil && r[0] == '!' || dflag >= Tkdraw)
 		warn(sprint("tkcmd: %q: %s", s, r));
 	return r;
 }

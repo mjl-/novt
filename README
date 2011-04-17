@@ -33,7 +33,11 @@ mechiel lukkien, reachable at mechiel@ueber.net.
 
 # todo
 
-- implement tab?
+- don't add newlines to snarfed/pasted text
+- find way to synchronize between command & novt that /dev/termctl is setup.  perhaps let novt serve it.
+- make faster
+- "send" button?
+- plumbing?
 - send function keys?
 - handle whatever happens when Delete is pressed correctly?
 - fine tune colors?
