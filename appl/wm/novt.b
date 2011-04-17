@@ -37,11 +37,12 @@ command: list of string;
 
 echo := 0;
 escs := 1;
-columns,
-rows,
+columns: int;
+rows: int;
 nlines: int;
 bell: int;
 cursor := 1;
+error: int;
 
 State: adt {
 	y,
@@ -93,29 +94,28 @@ syncc: chan of int;
 fontwidth,
 fontheight: int;
 
+Msnarf, Mpaste, Mclear, Mdim, Mbreak, Mescs, Mecho, Mdebug, Mnodebug, Mredial, Mx: con iota;
 tkcmds0 := array[] of {
-"frame .c",
-"label .c.bell0 -fg red -text '     ",
-"label .c.bell1 -fg red -text '     ",
-"button .c.echo -text echo -command {send cmd echo}",
-"button .c.nodebug -text nodebug -command {send cmd nodebug}",
-"button .c.escs -text noescs -command {send cmd noescs}",
-"button .c.clear -text clear -command {send cmd clear}",
-"button .c.break -text break -command {send cmd break}",
-"button .c.dim -text dim -command {send cmd dim}",
-"button .c.debug -text debug -command {send cmd debug}",
-"button .c.x -text x -command {send cmd x}",
-"pack .c.bell0 .c.bell1 .c.echo .c.escs .c.clear .c.break .c.dim .c.debug .c.nodebug .c.x -side left",
-"label .error -fg red",
+"menu .m",
+".m add command -label snarf	-command {send cmd snarf}",
+".m add command -label paste	-command {send cmd paste}",
+".m add command -label clear	-command {send cmd clear}",
+".m add command -label dim	-command {send cmd dim}",
+".m add command -label break	-command {send cmd break}",
+".m add command -label noescs	-command {send cmd escs}",
+".m add command -label echo	-command {send cmd echo}",
+".m add command -label debug	-command {send cmd debug}",
+".m add command -label nodebug	-command {send cmd nodebug}",
+".m add command -label redial	-command {send cmd redial}",
+".m add command -label x	-command {send cmd x}",
+
 "frame .f",
 "scrollbar .f.scroll -command {.t yview}",
 "pack .f.scroll -in .f -side left -fill y",
 "text .t -width 80w -height 24h -fg #dddddd -bg black -yscrollcommand {.f.scroll set}",
 "bind .t <Key> {send key %K}",
-"bind .t <ButtonRelease-2> {send cmd cut}",
-"bind .t <Button-3> {send cmd paste}",
+"bind .t <ButtonPress-2> {.m post %X %Y}",
 "pack .t -in .f -side right -fill both -expand 1",
-"pack .c .error",
 "pack .f -fill both -expand 1",
 "focus .t",
 };
@@ -157,14 +157,9 @@ init(ctxt: ref Draw->Context, args: list of string)
 	else
 		command = args;
 
-	sys->pctl(Sys->NEWPGRP, nil);
 	tkclient->init();
 	(t, wmctl) = tkclient->toplevel(ctxt, "", "novt", Tkclient->Appl);
 
-	cc = chan of int;
-	syncc = chan of int;
-
-	inc = chan of (array of byte, string);
 	ctrlc := chan of string;
 	escc := chan of string;
 	cmdc := chan of string;
@@ -175,7 +170,7 @@ init(ctxt: ref Draw->Context, args: list of string)
 	tk->namechan(t, keyc, "key");
 	tkcmds(tkcmds0);
 	if(echo)
-		tkcmd(".c.echo configure -text noecho -command {send cmd noecho}");
+		tkcmd(sprint(".m entryconfigure %d -label 'noecho", Mecho));
 	for(i := 'A'; i <= '_'; i++)
 		if(i != '\\' && i != '[')
 			tkcmd(sprint("bind .t <Control-%c> {send ctrl %c}", i, i));
@@ -210,16 +205,11 @@ init(ctxt: ref Draw->Context, args: list of string)
 	tkclient->onscreen(t, nil);
 	tkclient->startinput(t, "kbd"::"ptr"::nil);
 
+	restart();
+
 	fontheight = int tkcmd(".t cget -actheight")/rows;
 	fontwidth = int tkcmd(".t cget -actwidth")/columns;
 	tkcmd("bind .t <Configure> {send cmd configure}");
-
-	fromcmd0, fromcmd1: ref Sys->FD;
-	(tocmd, fromcmd0, fromcmd1) = run(command);
-	spawn reader(fromcmd0);
-	spawn reader(fromcmd1);
-	fromcmd0 = fromcmd1 = nil;
-	spawn parser();
 
 	for(;;) alt {
 	s := <-t.ctxt.kbd =>
@@ -264,7 +254,7 @@ init(ctxt: ref Draw->Context, args: list of string)
 			if(echo)
 				for(i = 0; i < len s; i++)
 					drawc(s[i]);
-		"cut" =>
+		"snarf" =>
 			s := tkcmd(sprint(".t get sel.first sel.last"));
 			l := split(s, "\n");
 			s = "";
@@ -272,12 +262,18 @@ init(ctxt: ref Draw->Context, args: list of string)
 				s += droptl(l[i], " ")+"\n";
 			tkclient->snarfput(s);
 
-		"echo" =>	echo = 1; tkcmd(".c.echo configure -text noecho -command {send cmd noecho}; update");
-		"noecho" =>	echo = 0; tkcmd(".c.echo configure -text echo -command {send cmd echo}; update");
-		"escs" =>	escs = 1; tkcmd(".c.escs configure -text noescs -command {send cmd noescs}; update");
-		"noescs" =>	escs = 0; tkcmd(".c.escs configure -text escs -command {send cmd escs}; update");
-		"debug" =>	dflag++;
-		"nodebug" =>	dflag = 0;
+		"echo" =>
+			echo = !echo;
+			mecho := array[] of {"echo", "noecho"};
+			tkcmd(sprint(".m entryconfigure %d -label '%s", Mecho, mecho[echo]));
+		"escs" =>
+			escs = !escs;
+			mescs := array[] of {"esc", "noescs"};
+			tkcmd(sprint(".m entryconfigure %d -label '%s", Mescs, mescs[escs]));
+		"debug" =>
+			dflag++;
+		"nodebug" =>
+			dflag = 0;
 		"clear" =>
 			st = nilstate;
 			tkcmd(".t delete 1.0 end");
@@ -342,6 +338,9 @@ init(ctxt: ref Draw->Context, args: list of string)
 			scroll();
 			tkcmd("update");
 
+		"redial" =>
+			restart();
+
 		"x" =>
 			warn("state:");
 			warn(sprint("y %d, x %d, autowrap %d", st.y, st.x, st.autowrap));
@@ -367,18 +366,37 @@ init(ctxt: ref Draw->Context, args: list of string)
 			drawc(s[0]);
 
 	(buf, err) := <-inc =>
+		if(buf == nil && err == nil) {
+			seterror("eof");
+			continue;
+		}
 		if(err != nil) {
 			seterror("read: "+err);
 			continue;
 		}
-		if(buf == nil) {
-			tocmd = nil;
-		} else {
-			drawbuf(buf);
-			setcursor();
-			tkcmd("update");
-		}
+		drawbuf(buf);
+		setcursor();
+		tkcmd("update");
 	}
+}
+
+restart()
+{
+	killgrp(pid());
+	tkclient->settitle(t, str->quoted(command));
+	tktitlecolor("blue");
+	error = 0;
+	tkcmd("update");
+
+	inc = chan of (array of byte, string);
+	cc = chan of int;
+	syncc = chan of int;
+
+	(fd0, fd1, fd2) := run(command);
+	tocmd = fd0;
+	spawn reader(fd1);
+	spawn reader(fd2);
+	spawn parser();
 }
 
 drawc(c: int)
@@ -406,10 +424,29 @@ drawbuf(d: array of byte)
 		drawc(s[i]);
 }
 
+alert(s: string)
+{
+	tkclient->settitle(t, str->quoted(command)+": "+s);
+}
+
 seterror(s: string)
 {
-	tkcmd(sprint(".error configure -text '%s", s));
+	if(!error) {
+		alert(s);
+		killgrp(pid());
+		tktitlecolor("red");
+		error = 1;
+		tocmd = nil;
+	} else if(dflag)
+		warn("novt: "+s);
 	tkcmd("update");
+}
+
+tktitlecolor(s: string)
+{
+	tkcmd(".Wm_t configure -bg "+s);
+	tkcmd(".Wm_t.title configure -bg "+s);
+	tkcmd(sprint("bind . <FocusIn> {.Wm_t configure -bg %s; .Wm_t.title configure -bg %s; update}", s, s));
 }
 
 setcursor()
@@ -514,9 +551,11 @@ c0(c: int)
 	16r00 =>	# filling, ignore
 		;
 	16r07 =>	# bell
-		tkcmd(sprint(".c.bell%d configure -text '     ", bell));
-		bell = 1-bell;
-		tkcmd(sprint(".c.bell%d configure -text 'bell!", bell));
+		s := "bell!";
+		if(bell)
+			s = "     "+s;
+		alert(s);
+		bell = !bell;
 	16r08 =>	# bs
 		setx(st.x-1);
 	16r09 =>	# ht, character tabulation, "\t"
@@ -954,7 +993,7 @@ run(argv: list of string): (ref Sys->FD, ref Sys->FD, ref Sys->FD)
 
 run0(argv: list of string, fd0, fd1, fd2: ref Sys->FD)
 {
-	sys->pctl(Sys->FORKFD, nil);
+	sys->pctl(Sys->FORKFD|Sys->NEWPGRP, nil);
 	sys->dup(fd0.fd, 0);
 	sys->dup(fd1.fd, 1);
 	sys->dup(fd2.fd, 2);
