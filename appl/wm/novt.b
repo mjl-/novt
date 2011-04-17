@@ -25,9 +25,6 @@ include "tkclient.m";
 	tkclient: Tkclient;
 include "keyboard.m";
 	kb: Keyboard;
-include "util0.m";
-	util: Util0;
-	writefile, pid, l2a, rev, droptl, min, max, warn, killgrp: import util;
 
 Novt: module {
 	init:	fn(ctxt: ref Draw->Context, argv: list of string);
@@ -98,7 +95,6 @@ fontheight: int;
 
 tkcmds0 := array[] of {
 "frame .c",
-"button .c.exit -text exit -command {send cmd exit}",
 "label .c.bell0 -fg red -text '     ",
 "label .c.bell1 -fg red -text '     ",
 "button .c.echo -text echo -command {send cmd echo}",
@@ -109,7 +105,7 @@ tkcmds0 := array[] of {
 "button .c.dim -text dim -command {send cmd dim}",
 "button .c.debug -text debug -command {send cmd debug}",
 "button .c.x -text x -command {send cmd x}",
-"pack .c.exit .c.bell0 .c.bell1 .c.echo .c.escs .c.clear .c.break .c.dim .c.debug .c.nodebug .c.x -side left",
+"pack .c.bell0 .c.bell1 .c.echo .c.escs .c.clear .c.break .c.dim .c.debug .c.nodebug .c.x -side left",
 "label .error -fg red",
 "frame .f",
 "scrollbar .f.scroll -command {.t yview}",
@@ -138,8 +134,6 @@ init(ctxt: ref Draw->Context, args: list of string)
 	str = load String String->PATH;
 	tk = load Tk Tk->PATH;
 	tkclient = load Tkclient Tkclient->PATH;
-	util = load Util0 Util0->PATH;
-	util->init();
 
 	if(ctxt == nil)
 		ctxt = tkclient->makedrawcontext();
@@ -235,17 +229,9 @@ init(ctxt: ref Draw->Context, args: list of string)
 		tk->pointer(t, *s);
 
 	s := <-t.ctxt.ctl or
-	s = <-t.wreq =>
+	s = <-t.wreq or
+	s = <-wmctl =>
 		tkclient->wmctl(t, s);
-
-	menu := <-wmctl =>
-		case menu {
-		"exit" =>
-			killgrp(pid());
-			exit;
-		* =>
-			tkclient->wmctl(t, menu);
-		}
 
 	s := <-ctrlc =>
 		c := s[0];
@@ -266,11 +252,8 @@ init(ctxt: ref Draw->Context, args: list of string)
 		}
 
 	cmd := <-cmdc =>
-		say(sprint("cmd: %q", cmd));
+		if(dflag) warn(sprint("cmd: %q", cmd));
 		case cmd {
-		"exit" =>
-			killgrp(pid());
-			return;
 		"paste" =>
 			s := tkclient->snarfget();
 			d := array of byte s;
@@ -305,12 +288,12 @@ init(ctxt: ref Draw->Context, args: list of string)
 			tkcmd("update");
 
 		"break" =>
-			err := writefile("/dev/termctl", 0, array of byte "break");
+			err := wf("/dev/termctl", array of byte "break");
 			if(err != nil)
 				warn("termctl break: "+err);
 
 		"dim" =>
-			err := writefile("/dev/termctl", 0, sys->aprint("dimensions %d %d", columns, rows));
+			err := wf("/dev/termctl", sys->aprint("dimensions %d %d", columns, rows));
 			if(err != nil)
 				warn("termctl dimensions: "+err);
 
@@ -324,15 +307,15 @@ init(ctxt: ref Draw->Context, args: list of string)
 			tkcmd(sprint(".t configure -width %d -height %d", width, height));
 			tkcmd("bind .t <Configure> {send cmd configure}");
 
-			err := writefile("/dev/termctl", 0, sys->aprint("dimensions %d %d", ncols, nrows));
+			err := wf("/dev/termctl", sys->aprint("dimensions %d %d", ncols, nrows));
 			if(err != nil)
 				warn("termctl dimensions: "+err);
 
-			say(sprint("new width %d, height %d, new cols %d, new rows %d", width, height, nrows, ncols));
+			if(dflag) warn(sprint("new width %d, height %d, new cols %d, new rows %d", width, height, nrows, ncols));
 
 			newrows := nrows-rows;
 			newcols := ncols-columns;
-			say(sprint("newrows %d, newcols %d", newrows, newcols));
+			if(dflag) warn(sprint("newrows %d, newcols %d", newrows, newcols));
 			if(newrows < 0) {
 				tkcmd(sprint(".t delete {end linestart %dl} end", newrows));
 			} else if(newrows > 0) {
@@ -512,9 +495,9 @@ parse()
 		c0(c);
 
 	16r7f =>
-		say("del");
+		if(dflag) warn("del");
 	* =>
-		if(dflag >= Chars) say(sprint("c %c (%#x), at %d,%d", c, c, st.y, st.x));
+		if(dflag >= Chars) warn(sprint("c %c (%#x), at %d,%d", c, c, st.y, st.x));
 		putchar(c);
 		sync();
 	}
@@ -526,7 +509,7 @@ c0names := array[] of {
 };
 c0(c: int)
 {
-	if(c != 16r1b && dflag >= Esc) say(sprint("c0 %#q", c0names[c]));
+	if(c != 16r1b && dflag >= Esc) warn(sprint("c0 %#q", c0names[c]));
 	case c {
 	16r00 =>	# filling, ignore
 		;
@@ -553,7 +536,7 @@ c0(c: int)
 			putchar(c);
 		}
 	* =>
-		say(sprint("unhandled c0 %#q", c0names[c]));
+		if(dflag) warn(sprint("unhandled c0 %#q", c0names[c]));
 	}
 	sync();
 }
@@ -572,7 +555,7 @@ esc()
 
 escfs(c: int)
 {
-	if(dflag >= Esc) say(sprint("escfs %c (%#x)", c, c));
+	if(dflag >= Esc) warn(sprint("escfs %c (%#x)", c, c));
 	case c {
 	# "esc Fs" in ecma-48
 	'c' =>	# ris, reset to initial state
@@ -583,7 +566,7 @@ escfs(c: int)
 			tkcmd(".t insert end '"+line);
 		
 	* =>
-		say(sprint("unknown independent control function, esc %c (esc %#x)", c, c));
+		if(dflag) warn(sprint("unknown independent control function, esc %c (esc %#x)", c, c));
 	}
 }
 
@@ -593,7 +576,7 @@ c1names := array[] of {
 };
 c1(c: int)
 {
-	if(c != '[' && dflag >= Esc) say(sprint("c1 %#q", c1names[c-16r40]));
+	if(c != '[' && dflag >= Esc) warn(sprint("c1 %#q", c1names[c-16r40]));
 	case c {
 	'_' or	# apc
 	'P' or	# dcs
@@ -626,7 +609,7 @@ c1(c: int)
 		csi();
 		return;
 	* =>
-		say(sprint("unhandled c1 %#q", c1names[c-16r40]));
+		if(dflag) warn(sprint("unhandled c1 %#q", c1names[c-16r40]));
 	}
 	sync();
 }
@@ -659,7 +642,7 @@ csi()
 	* =>
 		s := "";
 		s[0] = c;
-		say(sprint("invalid csi, params %#q, intermediates %#q, final %#q", p, i, s));
+		if(dflag) warn(sprint("invalid csi, params %#q, intermediates %#q, final %#q", p, i, s));
 	}
 	sync();
 }
@@ -667,9 +650,9 @@ csi()
 control(p, im: string, c: int)
 {
 	im[len im] = c;
-	if(dflag && dflag >= Esc) say(sprint("control, %#q %#q", p, im));
+	if(dflag && dflag >= Esc) warn(sprint("control, %#q %#q", p, im));
 	if(len im > 1) {
-		say(sprint("unrecognized csi, params %#q, command %#q", p, im));
+		if(dflag) warn(sprint("unrecognized csi, params %#q, command %#q", p, im));
 		return;
 	}
 	a := split(p, ";");
@@ -728,7 +711,7 @@ control(p, im: string, c: int)
 			49 =>
 				st.bg = Bg;
 			* =>
-				if(dflag) say(sprint("unknown mode %d, ignoring", v));
+				if(dflag) warn(sprint("unknown mode %d, ignoring", v));
 			}
 
 	# editor functions, ecma-48 8.2.6
@@ -818,7 +801,7 @@ control(p, im: string, c: int)
 		for(i := 0; i < len a; i++)
 			case int a[i] {
 			* =>
-				say(sprint("mode %d, value %d, not implemented", int a[i], v));
+				if(dflag) warn(sprint("mode %d, value %d, not implemented", int a[i], v));
 			}
 
 	# miscellaneous, ecma-48 8.2.14
@@ -829,7 +812,7 @@ control(p, im: string, c: int)
 			putchar(lastchar);
 
 	* =>
-		say(sprint("unrecognized csi, params %#q, command %#q", p, im));
+		if(dflag) warn(sprint("unrecognized csi, params %#q, command %#q", p, im));
 	}
 }
 
@@ -864,7 +847,7 @@ mkline(): string
 
 tktag(tag, pos: string)
 {
-if(dflag >= Tkdraw) say(sprint("tag %q, pos %q", tag, pos));
+if(dflag >= Tkdraw) warn(sprint("tag %q, pos %q", tag, pos));
 	tkcmd(sprint(".t tag add %s %s", tag, pos));
 }
 
@@ -971,10 +954,12 @@ run(argv: list of string): (ref Sys->FD, ref Sys->FD, ref Sys->FD)
 
 run0(argv: list of string, fd0, fd1, fd2: ref Sys->FD)
 {
-	sys->pctl(Sys->NEWFD, list of {fd0.fd, fd1.fd, fd2.fd});
+	sys->pctl(Sys->FORKFD, nil);
 	sys->dup(fd0.fd, 0);
 	sys->dup(fd1.fd, 1);
 	sys->dup(fd2.fd, 2);
+	sys->pctl(Sys->NEWFD, list of {0, 1, 2});
+	fd0 = fd1 = fd2 = nil;
 	err := sh->run(context, argv);
 	if(err != nil)
 		warn(err);
@@ -996,10 +981,74 @@ minmax(a, b, c: int): int
 	return max(a, min(b, c));
 }
 
-say(s: string)
+wf(f: string, buf: array of byte): string
 {
-	if(dflag)
-		warn(s);
+	fd := sys->open(f, Sys->OWRITE|Sys->OTRUNC);
+	if(fd == nil || sys->write(fd, buf, len buf) != len buf)
+		return sprint("write %q: %r", f);
+	return nil;
+}
+
+pid(): int
+{
+	return sys->pctl(0, nil);
+}
+
+progctl(pid: int, s: string)
+{
+	f := sprint("/prog/%d/ctl", pid);
+	fd := sys->open(f, Sys->OWRITE);
+	sys->fprint(fd, "%s", s);
+}
+
+killgrp(pid: int)
+{
+	progctl(pid, "killgrp");
+}
+
+l2a[T](l: list of T): array of T
+{
+	a := array[len l] of T;
+	i := 0;
+	for(; l != nil; l = tl l)
+		a[i++] = hd l;
+	return a;
+}
+
+rev[T](l: list of T): list of T
+{
+	r: list of T;
+	for(; l != nil; l = tl l)
+		r = hd l::r;
+	return r;
+}
+
+droptl(s, cl: string): string
+{
+	for(i := len s-1; i >= 0; i--)
+		if(!str->in(s[i], cl))
+			break;
+	return s[:i+1];
+}
+
+min(a, b: int): int
+{
+	if(a < b) return a;
+	return b;
+}
+
+max(a, b: int): int
+{
+	if(a > b) return a;
+	return b;
+}
+
+stderr: ref Sys->FD;
+warn(s: string)
+{
+	if(stderr == nil)
+		stderr = sys->fildes(2);
+	sys->fprint(stderr, "%s\n", s);
 }
 
 fail(s: string)

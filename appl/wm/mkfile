@@ -8,9 +8,13 @@ SYSMODULES=\
 	bufio.m\
 	daytime.m\
 	draw.m\
+	keyboard.m\
 	keyring.m\
+	sh.m\
 	string.m\
 	sys.m\
+	tk.m\
+	tkclient.m\
 
 DISBIN=$ROOT/dis
 
