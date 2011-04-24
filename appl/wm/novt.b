@@ -44,6 +44,9 @@ bell: int;
 cursor := 1;
 error: int;
 
+termreadrc: chan of (array of byte, string);
+termwrites: list of string;
+
 State: adt {
 	y,
 	x,
@@ -157,6 +160,11 @@ init(ctxt: ref Draw->Context, args: list of string)
 	else
 		command = args;
 
+	sys->bind("#s", "/dev", sys->MBEFORE);
+	tfio := sys->file2chan("/dev", "termctl");
+	if(tfio == nil)
+		fail(sprint("file2chan: %r"));
+
 	tkclient->init();
 	(t, wmctl) = tkclient->toplevel(ctxt, "", "novt", Tkclient->Appl);
 
@@ -223,6 +231,16 @@ init(ctxt: ref Draw->Context, args: list of string)
 	s = <-wmctl =>
 		tkclient->wmctl(t, s);
 
+	(nil, nil, nil, rc) := <-tfio.read =>
+		if(rc != nil) {
+			puttermread(rc);
+			termio();
+		}
+
+	(nil, nil, nil, wc) := <-tfio.write =>
+		if(wc != nil)
+			wc <-= (-1, "permission denied");
+
 	s := <-ctrlc =>
 		c := s[0];
 		c -= 16r40;
@@ -281,14 +299,12 @@ init(ctxt: ref Draw->Context, args: list of string)
 			tkcmd("update");
 
 		"break" =>
-			err := wf("/dev/termctl", array of byte "break");
-			if(err != nil)
-				warn("termctl break: "+err);
+			puttermwrite("break");
+			termio();
 
 		"dim" =>
-			err := wf("/dev/termctl", sys->aprint("dimensions %d %d", columns, rows));
-			if(err != nil)
-				warn("termctl dimensions: "+err);
+			puttermwrite(sprint("dimensions %d %d", columns, rows));
+			termio();
 
 		"configure" =>
 			# temporarily disable binding, we're reconfiguring width/height
@@ -300,9 +316,8 @@ init(ctxt: ref Draw->Context, args: list of string)
 			tkcmd(sprint(".t configure -width %d -height %d", width, height));
 			tkcmd("bind .t <Configure> {send cmd configure}");
 
-			err := wf("/dev/termctl", sys->aprint("dimensions %d %d", ncols, nrows));
-			if(err != nil)
-				warn("termctl dimensions: "+err);
+			puttermwrite(sprint("dimensions %d %d", ncols, nrows));
+			termio();
 
 			if(dflag) warn(sprint("new width %d, height %d, new cols %d, new rows %d", width, height, nrows, ncols));
 
@@ -373,8 +388,34 @@ init(ctxt: ref Draw->Context, args: list of string)
 	}
 }
 
+puttermwrite(s: string)
+{
+	termwrites = rev(s::rev(termwrites));
+}
+
+puttermread(rc: chan of (array of byte, string))
+{
+	if(termreadrc != nil)
+		rc <-= (nil, "read already pending");
+	else
+		termreadrc = rc;
+}
+
+termio()
+{
+	if(termreadrc == nil || termwrites == nil)
+		return;
+	termreadrc <-= (array of byte hd termwrites, nil);
+	termreadrc = nil;
+	termwrites = tl termwrites;
+}
+
 restart()
 {
+	if(termreadrc != nil) {
+		termreadrc <-= (array[0] of byte, nil);
+		termreadrc = nil;
+	}
 	killgrp(pid());
 	tkclient->settitle(t, str->quoted(command));
 	tktitlecolor("blue");
@@ -1011,14 +1052,6 @@ ewrite(fd: ref Sys->FD, d: array of byte, n: int): int
 minmax(a, b, c: int): int
 {
 	return max(a, min(b, c));
-}
-
-wf(f: string, buf: array of byte): string
-{
-	fd := sys->open(f, Sys->OWRITE|Sys->OTRUNC);
-	if(fd == nil || sys->write(fd, buf, len buf) != len buf)
-		return sprint("write %q: %r", f);
-	return nil;
 }
 
 pid(): int

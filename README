@@ -34,7 +34,6 @@ mechiel lukkien, reachable at mechiel@ueber.net.
 # todo
 
 - don't add newlines to snarfed/pasted text
-- find way to synchronize between command & novt that /dev/termctl is setup.  perhaps let novt serve it.
 - make faster
 - "send" button?
 - plumbing?

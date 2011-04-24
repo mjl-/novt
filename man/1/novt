@@ -14,12 +14,22 @@ It uses the shell to start
 .IR command .
 Keystrokes are written to the command and displayed along with characters read from the command.
 Escape characters are interpreted.
-Only the minimum number of escape codes are implemented (as recommended by ecma-48).
-
+Only the minimum number of escape codes are implemented (limited implementations are recommended by ecma-48).
 .PP
 Text is ``rendered'' in a Tk text widget.
 The last lines are the current terminal contents, earlier lines can be scrolled to with the mouse (not with page up and page down!).
 .PP
+Bells are shown in the title bar.
+Errors are also shown in the title bar, but the title bar background is colored red as well.
+.SS Options
+.TP
+.B -e
+Echo the characters typed.
+Disabled by default.
+.TP
+.B -d
+Enable debug printing, more options prints more information.
+.SS Menu
 Pressing button 2 opens a menu with the following commands:
 .TP
 .B snarf
@@ -60,28 +70,32 @@ Turns debugging off.
 .B redial
 Restart
 .IR command .
-.PP
-Bells are shown in the title bar.
-Errors are also shown in the title bar, but the title bar background is colored red as well.
-.PP
-When the terminal is resized, the new dimensions are written to
-.BR /dev/termctl ,
-as exported by
-.IR ssh (1).
-This makes sure both sides talk about the same terminal dimensions.
-.SS Options
+.SS Termctl
+Novt serves the file
+.BR /dev/termctl .
+Programs such as
+.IR ssh (1)
+can read updates from it.
+The following messages are generated:
 .TP
-.B -e
-Echo the characters typed.
-Disabled by default.
+.BI dimensions " width height"
+Sent after a resize and after selecting the ``dim'' menu item.
+The terminal size is now
+.I width
+columns
+and
+.I height
+rows.
 .TP
-.B -d
-Enable debug printing, more options prints more information.
+.B break
+Sent after selecting the ``break'' menu item.
 .SH EXAMPLE
 To start a terminal with an ssh session to a server:
 .EX
 	novt ssh -t localhost
 .EE
+.SH FILES
+.B /dev/termctl
 .SH SOURCE
 .B /appl/wm/novt.b
 .SH SEE ALSO
